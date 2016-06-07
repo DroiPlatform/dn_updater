@@ -1,0 +1,6 @@
+#!/bin/bash
+
+TGT=dn_updater
+
+export GOPATH=`pwd`
+env GOOS=linux GOARCH=amd64 go build -v -ldflags "-s" $TGT
