@@ -266,8 +266,9 @@ func updateKubeStatus(key string, firstborn bool, clean bool, inc *KubeInfo, cur
   flushInfo(kube_status[key].inc);
   flushInfo(kube_status[key].current);
   */
+  domain := kube_status[key].domain;
   delete(kube_status, key);
-  kube_status[key] = KubeStatus {firstborn: firstborn, clean: clean, inc: inc, current: current};
+  kube_status[key] = KubeStatus {firstborn: firstborn, clean: clean, domain: domain, inc: inc, current: current};
 }
 
 func printHosts(dest *os.File, key string) {
@@ -275,7 +276,7 @@ func printHosts(dest *os.File, key string) {
   for k, v := range info.pod_ip {
     ips := strings.Split(v, ",");
     for _, ip := range ips {
-      fmt.Fprintf(dest, "%s %s\n", ip, k);
+      fmt.Fprintf(dest, "%s %s.%s\n", ip, k, kube_status[key].domain);
     }
   }
 }

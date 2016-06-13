@@ -1,5 +1,6 @@
 package main;
 
+import "errors";
 import "flag";
 import "fmt";
 import "net/http";
@@ -26,6 +27,7 @@ type Options struct {
   poll int;
   pool int;
   brokers string;
+  domain string;
   etcd string;
   host string;
 }
@@ -34,6 +36,7 @@ type Options struct {
 type KubeStatus struct {
   clean bool;
   firstborn bool;
+  domain string;
   current *KubeInfo;
   inc *KubeInfo;
 }
@@ -56,6 +59,7 @@ type TmpBuffer struct {
 var kube_status map[string]KubeStatus;
 var opts Options;
 var etcds []string;
+var domains []string;
 var buffer TmpBuffer;
 
 func init() {
@@ -63,7 +67,8 @@ func init() {
   flag.BoolVar(&opts.debug, "debug", false, "print debug message");
   flag.IntVar(&opts.poll, "poll", 5, "etcd polling interval");
   flag.IntVar(&opts.pool, "pooll", 3, "pool size for log producers");
-  flag.StringVar(&opts.brokers, "brokers", "10.128.112.78:9092", "ip:port for kafka brokers, seperated by comma");
+  flag.StringVar(&opts.brokers, "brokers", "10.128.112.186:9092", "ip:port for kafka brokers, seperated by comma");
+  flag.StringVar(&opts.domain, "domain", "", "domain for etcds, seperated by comma");
   flag.StringVar(&opts.etcd, "etcd", "", "ip:port for etcds, seperated by comma");
   flag.StringVar(&opts.host, "host", "", "host identifier of this machine, usually IP");
 }
@@ -98,9 +103,13 @@ func initData() (error){
   if err != nil {
     return err;
   }
+  domains = strings.Split(opts.domain, ",");
+  if len(etcds) != len(domains) {
+    return errors.New(fmt.Sprintf("# of etcds and # of domains not match: %s %s", opts.etcd, opts.domain));
+  }
   kube_status = make(map[string]KubeStatus);
-  for _, v := range etcds {
-    kube_status[v] = KubeStatus{firstborn: false, clean: false, inc: &KubeInfo{make(map[string]string)}, current: &KubeInfo{make(map[string]string)}};
+  for k, v := range etcds {
+    kube_status[v] = KubeStatus{firstborn: false, clean: false, domain: domains[k], inc: &KubeInfo{make(map[string]string)}, current: &KubeInfo{make(map[string]string)}};
     buffer.requests[v], err = http.NewRequest("GET", fmt.Sprintf("http://%s%s", v, URI), nil);
     if err != nil {
       return err;
