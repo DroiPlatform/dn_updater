@@ -77,7 +77,7 @@ int getIPs(char* raw, char* output) {
             return ERR_SIZE;
           }
         }
-        fprintf(stderr, "out:\n%s\n", output);
+        //fprintf(stderr, "out:\n%s\n", output);
         return occupied;
       }
       return UNKNOWN;
@@ -90,9 +90,14 @@ int getIPs(char* raw, char* output) {
 */
 import "C";
 
+import "bufio";
+import "errors";
 import "fmt";
 import "io/ioutil";
+import "os";
+import "strconv";
 import "strings";
+import "syscall";
 import "time";
 import "unicode/utf8";
 import "unsafe";
@@ -127,9 +132,288 @@ func Asclepius() {
           util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to parse JSON from etcd: %d", result), TOPIC);
           return;
         } else {
-          fmt.Printf("---\nresult %s\n===\n", string(buffer.raw_json[:result]));
+          /* parse and store host/ip pair */
+          ///*
+          err := fillHosts(string(buffer.raw_json[:result]));
+          if err != nil {
+            util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to parse host records from etcd: %s", err.Error()), TOPIC);
+            return;
+          }
+          fillInc();
+          //*/
         }
-        return;
+      }
+    }
+  }
+}
+
+func printKubeInfo(ki *KubeInfo) {
+  if opts.debug {
+    for k, v := range ki.pod_ip {
+      util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf(" {%s: %s}", k, v), TOPIC);
+    }
+  }
+}
+
+func isIPEqual(l string, r string) (bool) {
+  lips := strings.Split(l, ",");
+  rips := strings.Split(r, ",");
+  if len(lips) != len(rips) {
+    return false;
+  } else {
+    find := false;
+    for _, lv := range lips {
+      find = false;
+      for _, rv := range rips {
+        if lv == rv {
+          find = true;
+          break;
+        }
+      }
+      if !find {
+        return find;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+func isInfoEqual(l *KubeInfo, r *KubeInfo) (bool) {
+  /* dummy code */
+  /*
+  return true;
+  //*/
+  if len(l.pod_ip) != len(r.pod_ip) {
+    return false;
+  } else {
+    equal := false;
+    for k, _ := range l.pod_ip {
+      if _, ok := r.pod_ip[k]; !ok {
+        if opts.debug {
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s cannot be found in right set", k), TOPIC);
+        }
+        return false;
+      } else {
+        /* testing pod */
+        /*
+        if opts.debug {
+          if k == "hello-curl-http" {
+            fmt.Printf("%s: l: %s, r: %s\n", k, l.pod_ip[k], r.pod_ip[k]);
+          }
+        }
+        //*/
+        /* check if incoming pod IP set equals to current pod IP set for specific pod */
+        equal = isIPEqual(l.pod_ip[k], r.pod_ip[k]);
+        if !equal {
+          if opts.debug {
+            util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s is clean? %v", k, equal), TOPIC);
+          }
+          return equal;
+        }
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+func flushInfo(ki *KubeInfo) {
+  for k, _ := range ki.pod_ip {
+    /* flush pod_ip */
+    delete(ki.pod_ip, k);
+  }
+}
+
+func fillHosts(in string) (error) {
+  /* flush old buffer */
+  for k, _ := range buffer.hosts {
+    delete(buffer.hosts, k);
+  }
+  /* split return string into records of format "host?ip,ip,..." */
+  records := strings.Split(in, ";");
+  for _, v := range records {
+    hosts := strings.Split(v, "?");
+    if len(hosts) != 2 {
+      return errors.New(fmt.Sprintf("(ETCD, internal) host format error: %s", in));
+    } else {
+      buffer.hosts[hosts[0]] = hosts[1];
+    }
+  }
+  return nil;
+}
+
+func fillInfo(ki *KubeInfo) (error) {
+  for k, v := range buffer.hosts {
+    ips := strings.Split(v, ",");
+    if len(ips) == 1 && ips[0] == "-1" {
+      continue;
+    } else {
+      for _, vip := range ips {
+        if err := checkIPFmt(vip); err != nil {
+          flushInfo(ki);
+          return err;
+        }
+      }
+      ki.pod_ip[k] = v;
+    }
+  }
+  return nil;
+}
+
+func updateKubeStatus(key string, firstborn bool, clean bool, inc *KubeInfo, current *KubeInfo) {
+  /*
+  flushInfo(kube_status[key].inc);
+  flushInfo(kube_status[key].current);
+  */
+  delete(kube_status, key);
+  kube_status[key] = KubeStatus {firstborn: firstborn, clean: clean, inc: inc, current: current};
+}
+
+func printHosts(dest *os.File, key string) {
+  info := kube_status[key].current;
+  for k, v := range info.pod_ip {
+    ips := strings.Split(v, ",");
+    for _, ip := range ips {
+      fmt.Fprintf(dest, "%s %s\n", ip, k);
+    }
+  }
+}
+
+func writeKubeInfo(key string) {
+  src, err := os.Open(HOST);
+  defer src.Close();
+  if err != nil {
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to open host file (%s): %s", HOST, err.Error()), TOPIC);
+  } else {
+    dest, err := os.Create(HOST + ".tmp");
+    defer dest.Close();
+    if err != nil {
+      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to open tmp host file (%s): %s", HOST + ".tmp", err.Error()), TOPIC);
+    } else {
+      scanner := bufio.NewScanner(src);
+      head := false;
+      tail := false;
+      save := false;
+      target_hd := fmt.Sprintf("%s-%s", HEAD, key);
+      target_tl := fmt.Sprintf("%s-%s", TAIL, key);
+      for scanner.Scan() {
+        raw := scanner.Text();
+        current_line := strings.TrimSpace(raw);
+        if current_line == target_hd {
+          /* head of target found */
+          head = true;
+          fmt.Fprintf(dest, "%s\n", current_line);
+        } else if head && !tail && current_line == target_tl {
+          /* tail of target found, write out updated records */
+          printHosts(dest, key);
+          save = true;
+          fmt.Fprintf(dest, "%s\n", current_line);
+        } else if head && !tail {
+          /* inside target block, skip all and do nothing */
+        } else if head && tail {
+          /* after target block, write out */
+          fmt.Fprintf(dest, "%s\n", current_line);
+        } else if !head {
+          /* b4 target block, write out */
+          fmt.Fprintf(dest, "%s\n", current_line);
+        }
+      }
+      if !head {
+        /* not deployed, write new block */
+        fmt.Fprintf(dest, "%s\n", target_hd);
+        printHosts(dest, key);
+        fmt.Fprintf(dest, "%s\n", target_tl);
+        save = true;
+      }
+      if save {
+        timestamp := time.Now().UnixNano()/int64(1000000);
+        os.Rename(HOST, fmt.Sprintf("%s.%d", HOST, timestamp));
+        os.Rename(HOST + ".tmp", HOST);
+        reloadDNSMasq();
+      }
+    }
+  }
+}
+
+func getDNSMasqPID() (int, error) {
+  fp, err := os.Open(DNSMasq);
+  if err != nil {
+    return -1, err;
+  } else {
+    scanner := bufio.NewScanner(fp);
+    for scanner.Scan() {
+      raw := scanner.Text();
+      current_line := strings.TrimSpace(raw);
+      pid, err := strconv.Atoi(current_line);
+      if err != nil {
+        return -1, err;
+      } else {
+        return pid, nil;
+      }
+    }
+  }
+  return -1, nil;
+}
+
+func reloadDNSMasq() {
+  pid, err := getDNSMasqPID();
+  if err != nil {
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to get pid of dnsmasq: %s", err.Error()), TOPIC);
+  } else {
+    if pid == -1 {
+      util.GenericLogPrinter(opts.host, "ERR", "impossible condition while getting pid of dnsmasq", TOPIC);
+    }
+    pc, err := os.FindProcess(pid);
+    if err != nil {
+      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to find proccess via pid %d", pid), TOPIC);
+    } else {
+      err =  pc.Signal(syscall.SIGHUP);
+      if err != nil {
+        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to send signal to %d: %s", pid, err.Error()), TOPIC);
+      }
+    }
+  }
+}
+
+func fillInc() {
+  for _, v := range etcds {
+    inc := kube_status[v].inc;
+    current := kube_status[v].current;
+    if kube_status[v].firstborn {
+      /* not first time, flush incoming buffer for incoming info  */
+      flushInfo(inc);
+      fillInfo(inc);
+      clean := isInfoEqual(inc, current);
+      if !clean {
+        flushInfo(current);
+        fillInfo(current);
+        updateKubeStatus(v, true, clean, inc, current);
+        writeKubeInfo(v);
+        if opts.debug {
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("inc: "), TOPIC);
+          printKubeInfo(kube_status[v].inc);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("current:"), TOPIC);
+          printKubeInfo(kube_status[v].current);
+        }
+      } else {
+        if opts.debug {
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s is clean? %v!", v, clean), TOPIC);
+        }
+      }
+    } else {
+      /* first time, make space for incoming info and current info */
+      fillInfo(inc);
+      fillInfo(current);
+      updateKubeStatus(v, true, true, inc, current);
+      writeKubeInfo(v);
+      if opts.debug {
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("inc: "), TOPIC);
+        printKubeInfo(kube_status[v].inc);
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("current:"), TOPIC);
+        printKubeInfo(kube_status[v].current);
       }
     }
   }
@@ -160,5 +444,58 @@ func replace(s, old, new string, out []byte) {
     start = j + len(old);
   }
   w += copy(out[w:], s[start:]);
+}
+
+func checkIPFmt(ip string) (error) {
+  ips := strings.Split(ip, ".");
+  if len(ips) != 4 {
+    return errors.New(fmt.Sprintf("(IP) Invalid IP format, expected <num>.<num>.<num>.<num>, got %s", ip));
+  } else {
+    for _, v := range ips {
+      num, err := strconv.Atoi(v);
+      if err != nil {
+        return errors.New(fmt.Sprintf("(IP) Failed to parse IP: %s", err.Error()));
+      } else {
+        if num > 255 || num < 0 {
+          return errors.New(fmt.Sprintf("(IP) Invalid IP: %s", ip));
+        }
+      }
+    }
+    return nil;
+  }
+  return errors.New("(IP) Unknown situation");
+}
+
+func checkETCDIPFmt(ip string) (error) {
+  tokens := strings.Split(ip, ":");
+  if len(tokens) != 2 {
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("(ETCD) IP format error, expected <IP>:<Port>, got %s", ip), TOPIC);
+    return errors.New(fmt.Sprintf("(ETCD) IP format error, expected <IP>:<Port>, got %s", ip));
+  } else {
+    port, err := strconv.Atoi(tokens[1]);
+    if err != nil {
+      return errors.New(fmt.Sprintf("(ETCD) Failed to parse port of ETCD %s: %s", ip, err.Error()));
+    } else {
+      if port > 65535 || port < 1000 {
+        return errors.New(fmt.Sprintf("(ETCD) Invalid port range, expected 1000~65535, got %d", port));
+      } else {
+        return checkIPFmt(tokens[0]);
+      }
+      return errors.New("(ETCD) Unknown situation");
+    }
+    return errors.New("(ETCD) Unknown situation");
+  }
+  return errors.New("(ETCD) Unknown situation");
+}
+
+func checkETCD() (error) {
+  var err error;
+  for _, v := range etcds {
+    err = checkETCDIPFmt(v);
+    if err != nil {
+      return err;
+    }
+  }
+  return nil;
 }
 

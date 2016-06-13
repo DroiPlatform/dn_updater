@@ -5,9 +5,15 @@ import "fmt";
 import "net/http";
 import "strings";
 
+import util "tyd_util";
 import logutil "tyd_util/log_util";
 
-const TOPIC = "dns_updater"
+const TOPIC = "dn_updater"
+
+const HEAD = "# head of dn_updater";
+const TAIL = "# tail of dn_updater";
+const HOST = "/etc/hosts";
+const DNSMasq = "/var/run/dnsmasq/dnsmasq.pid";
 
 const SIZE_BUF = 65536;
 
@@ -27,8 +33,9 @@ type Options struct {
 /* structure for kube status */
 type KubeStatus struct {
   clean bool;
-  inc *KubeInfo;
+  firstborn bool;
   current *KubeInfo;
+  inc *KubeInfo;
 }
 
 /* structure for kube info */
@@ -43,6 +50,7 @@ type TmpBuffer struct {
   requests map[string]*http.Request;
   raw_json []byte;  // raw json from etcd, allocate 64KB = 65536
   escape_json []byte;  // json for espaced, allocate 64KB = 65536
+  hosts map[string]string;
 }
 
 var kube_status map[string]KubeStatus;
@@ -52,10 +60,12 @@ var buffer TmpBuffer;
 
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
+  flag.BoolVar(&opts.debug, "debug", false, "print debug message");
   flag.IntVar(&opts.poll, "poll", 5, "etcd polling interval");
   flag.IntVar(&opts.pool, "pooll", 3, "pool size for log producers");
   flag.StringVar(&opts.brokers, "brokers", "10.128.112.78:9092", "ip:port for kafka brokers, seperated by comma");
   flag.StringVar(&opts.etcd, "etcd", "", "ip:port for etcds, seperated by comma");
+  flag.StringVar(&opts.host, "host", "", "host identifier of this machine, usually IP");
 }
 
 func initHermes() (error) {
@@ -64,6 +74,9 @@ func initHermes() (error) {
     return err;
   }
   err = initData();
+  if opts.debug {
+    util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("result from initData: %v", err), TOPIC);
+  }
   return err;
 }
 
@@ -77,13 +90,17 @@ func initData() (error){
   buffer.requests = make(map[string]*http.Request);
   buffer.raw_json = make([]byte, SIZE_BUF);
   buffer.escape_json = make([]byte, SIZE_BUF);
+  buffer.hosts = make(map[string]string);
 
   /* initiate etcd related resources */
   etcds = strings.Split(opts.etcd, ",");
+  err := checkETCD();
+  if err != nil {
+    return err;
+  }
   kube_status = make(map[string]KubeStatus);
-  var err error
   for _, v := range etcds {
-    kube_status[v] = KubeStatus{clean: false, inc: &KubeInfo{make(map[string]string)}, current: &KubeInfo{make(map[string]string)}};
+    kube_status[v] = KubeStatus{firstborn: false, clean: false, inc: &KubeInfo{make(map[string]string)}, current: &KubeInfo{make(map[string]string)}};
     buffer.requests[v], err = http.NewRequest("GET", fmt.Sprintf("http://%s%s", v, URI), nil);
     if err != nil {
       return err;
