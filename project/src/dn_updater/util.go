@@ -276,7 +276,7 @@ func printHosts(dest *os.File, key string) {
   for k, v := range info.pod_ip {
     ips := strings.Split(v, ",");
     for _, ip := range ips {
-      fmt.Fprintf(dest, "%s %s.%s\n", ip, k, kube_status[key].domain);
+      fmt.Fprintf(dest, "%s %s.%s %s\n", ip, k, kube_status[key].domain, k);
     }
   }
 }
