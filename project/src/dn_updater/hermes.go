@@ -2,7 +2,7 @@ package main;
 
 import "flag";
 import "fmt";
-import "net/http";
+//import "net/http";
 import "os";
 
 import logutil "tyd_util/log_util";
@@ -21,6 +21,7 @@ func main() {
     fmt.Fprintf(os.Stderr, "failed to initiate: %s\n", err.Error());
     os.Exit(1);
   }
+  /*
   for _, v := range etcds {
     buffer.requests[v], err = http.NewRequest("GET", fmt.Sprintf("http://%s%s", v, URI), nil);
     if err != nil {
@@ -29,6 +30,7 @@ func main() {
       os.Exit(1);
     }
   }
+  */
   util.GenericLogPrinter(opts.host, "INFO", fmt.Sprintf("domain name updater activated, target etcds are %s", opts.etcd), TOPIC);
   Caduceus();
 }

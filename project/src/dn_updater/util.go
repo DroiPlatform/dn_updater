@@ -28,10 +28,12 @@ int getIPs(char* raw, char* output) {
   } else {
     cJSON* node = cJSON_GetObjectItem(root, "node");
     if (node == NULL) {
+      cJSON_Delete(root);
       return NF_1ST_NODE;
     } else {
       cJSON* nodes = cJSON_GetObjectItem(node, "nodes");
       if (nodes == NULL) {
+        cJSON_Delete(root);
         return NF_2ND_NODES;
       } else {
         int num_pod = cJSON_GetArraySize(nodes);
@@ -74,16 +76,21 @@ int getIPs(char* raw, char* output) {
             occupied += r;
           } else {
             fprintf(stderr, "raw: %s\n key: %s\n size_subset: %d\n", raw, key, size_subset);
+            cJSON_Delete(root);
             return ERR_SIZE;
           }
         }
         //fprintf(stderr, "out:\n%s\n", output);
+        cJSON_Delete(root);
         return occupied;
       }
+      cJSON_Delete(root);
       return UNKNOWN;
     }
+    cJSON_Delete(root);
     return UNKNOWN;
   }
+  cJSON_Delete(root);
   return UNKNOWN;
 }
 
@@ -420,10 +427,10 @@ func fillInc() {
   }
 }
 
-func replace(s, old, new string, out []byte) {
+func replace(s, old_str, new_str string, out []byte) {
   // Compute number of replacements.
   var m int;
-  if m = strings.Count(s, old); m == 0 {
+  if m = strings.Count(s, old_str); m == 0 {
     return; // avoid allocation
   }
 
@@ -432,17 +439,17 @@ func replace(s, old, new string, out []byte) {
   start := 0;
   for i := 0; i < m; i++ {
     j := start;
-    if len(old) == 0 {
+    if len(old_str) == 0 {
       if i > 0 {
         _, wid := utf8.DecodeRuneInString(s[start:]);
         j += wid;
       }
     } else {
-      j += strings.Index(s[start:], old);
+      j += strings.Index(s[start:], old_str);
     }
     w += copy(out[w:], s[start:j]);
-    w += copy(out[w:], new);
-    start = j + len(old);
+    w += copy(out[w:], new_str);
+    start = j + len(old_str);
   }
   w += copy(out[w:], s[start:]);
 }
