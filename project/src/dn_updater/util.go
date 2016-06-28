@@ -19,20 +19,25 @@ package main;
 
 #define UNKNOWN -256
 
+#define DEBUG 0
+
 int getIPs(char* raw, char* output) {
   cJSON* root = cJSON_Parse(raw);
   int occupied = 0;
   int r;
   if (root == NULL) {
+    if (DEBUG) fprintf(stderr, "NF_ROOT\n");
     return NF_ROOT;
   } else {
     cJSON* node = cJSON_GetObjectItem(root, "node");
     if (node == NULL) {
+      if (DEBUG) fprintf(stderr, "NF_1ST_NODE\n");
       cJSON_Delete(root);
       return NF_1ST_NODE;
     } else {
       cJSON* nodes = cJSON_GetObjectItem(node, "nodes");
       if (nodes == NULL) {
+        if (DEBUG) fprintf(stderr, "NF_2ND_NODES\n");
         cJSON_Delete(root);
         return NF_2ND_NODES;
       } else {
@@ -41,6 +46,7 @@ int getIPs(char* raw, char* output) {
         int pos = 0, index;
         char* key, * raw_key;
         cJSON* current,* value, * subset,* addrs,* ip;
+        if (DEBUG) fprintf(stderr, "num_pod: %d\n", num_pod);
         for (i = 0; i < num_pod; i++) {
           current = cJSON_GetArrayItem(nodes, i);
           raw_key = cJSON_GetObjectItem(current, "key")->valuestring;
@@ -59,37 +65,49 @@ int getIPs(char* raw, char* output) {
           value = cJSON_GetObjectItem(current, "value");
           subset = cJSON_GetObjectItem(value, "subsets");
           int size_subset = cJSON_GetArraySize(subset);
+          if (DEBUG) fprintf(stderr, "%s: occupied: %d, expected subset: %d\n", key, occupied, size_subset);
           if (size_subset == 1) {
             addrs = cJSON_GetObjectItem(cJSON_GetArrayItem(subset, 0), "addresses");
-            num_ip = cJSON_GetArraySize(addrs);
-            for (j = 0; j < num_ip; j++) {
-              ip = cJSON_GetArrayItem(addrs, j);
-              if (j == 0) {
-                r = snprintf(output + occupied, SIZE_BUF - occupied, "%s", cJSON_GetObjectItem(ip, "ip")->valuestring);
-              } else {
-                r = snprintf(output + occupied, SIZE_BUF - occupied, ",%s", cJSON_GetObjectItem(ip, "ip")->valuestring);
+            if (addrs == NULL) {
+              r = snprintf(output + occupied, SIZE_BUF - occupied, "-1");
+            } else {
+              num_ip = cJSON_GetArraySize(addrs);
+              if (DEBUG) fprintf(stderr, "%s: occupied: %d, expected ips: %d\n", key, occupied, num_ip);
+              for (j = 0; j < num_ip; j++) {
+                ip = cJSON_GetArrayItem(addrs, j);
+                if (j == 0) {
+                  r = snprintf(output + occupied, SIZE_BUF - occupied, "%s", cJSON_GetObjectItem(ip, "ip")->valuestring);
+                } else {
+                  r = snprintf(output + occupied, SIZE_BUF - occupied, ",%s", cJSON_GetObjectItem(ip, "ip")->valuestring);
+                }
+                occupied += r;
+                if (DEBUG) fprintf(stderr, "%s: size_ip (%d/%d), occupied: %d\n", key, j, num_ip, occupied);
               }
-              occupied += r;
             }
+            if (DEBUG) fprintf(stderr, "%s: occupied: %d, ips done: %d\n", key, occupied, j);
           } else if (size_subset == 0) {
             r = snprintf(output + occupied, SIZE_BUF - occupied, "-1");
             occupied += r;
+            if (DEBUG) fprintf(stderr, "%s: size_ip (0), occupied: %d\n", key, occupied);
           } else {
-            fprintf(stderr, "raw: %s\n key: %s\n size_subset: %d\n", raw, key, size_subset);
+            if (DEBUG) fprintf(stderr, "raw: %s\n key: %s\n size_subset: %d\n", raw, key, size_subset);
             cJSON_Delete(root);
             return ERR_SIZE;
           }
         }
-        //fprintf(stderr, "out:\n%s\n", output);
+        if (DEBUG) fprintf(stderr, "out:\n%s\n", output);
         cJSON_Delete(root);
         return occupied;
       }
+      if (DEBUG) fprintf(stderr, "unknown situation for dn_updater (1)\n");
       cJSON_Delete(root);
       return UNKNOWN;
     }
+    if (DEBUG) fprintf(stderr, "unknown situation for dn_updater (2)\n");
     cJSON_Delete(root);
     return UNKNOWN;
   }
+  if (DEBUG) fprintf(stderr, "unknown situation for dn_updater (3)\n");
   cJSON_Delete(root);
   return UNKNOWN;
 }
@@ -134,6 +152,9 @@ func Asclepius() {
         replace(string(buffer.escape_json), "\\n", "", buffer.escape_json);
         replace(string(buffer.escape_json), "\"{", "{", buffer.escape_json);
         replace(string(buffer.escape_json), "}\"", "}", buffer.escape_json);
+        if opts.debug {
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("cJSON input: %s", buffer.escape_json), TOPIC);
+        }
         result := int(C.getIPs((*C.char)(unsafe.Pointer(&buffer.escape_json[0])), (*C.char)(unsafe.Pointer(&buffer.raw_json[0]))));
         if result <= 0 {
           util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to parse JSON from etcd: %d", result), TOPIC);
