@@ -148,6 +148,9 @@ func Asclepius() {
         util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to read from respnose: %s", err.Error()), TOPIC);
         return;
       } else {
+        for i:= 0; i < SIZE_BUF; i++ {
+          buffer.escape_json[i] = byte(0);
+        }
         replace(string(buffer.raw_json), "\\\"", "\"", buffer.escape_json);
         replace(string(buffer.escape_json), "\\n", "", buffer.escape_json);
         replace(string(buffer.escape_json), "\"{", "{", buffer.escape_json);
