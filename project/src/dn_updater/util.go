@@ -137,15 +137,15 @@ func Caduceus() {
 }
 
 func Asclepius() {
-  for k, v := range etcds {
+  for _, v := range etcds {
     resp, err := buffer.client.Do(buffer.requests[v]);
     if err != nil {
-      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to do request: %s", err.Error()), TOPIC);
+      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[Asclepius] failed to do request: %s", err.Error()), TOPIC);
       return;
     } else {
       buffer.raw_json, err = ioutil.ReadAll(resp.Body);
       if err != nil {
-        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to read from respnose: %s", err.Error()), TOPIC);
+        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[Asclepius] failed to read from respnose: %s", err.Error()), TOPIC);
         return;
       } else {
         /* clear tmp buffer */
@@ -155,7 +155,7 @@ func Asclepius() {
         }
         //*/
         if opts.debug {
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[Asclepius] Response of %d (%d) bytes from etcd %s received.", len(buffer.raw_json), resp.ContentLength, k), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[Asclepius] Response of %d (%d) bytes from etcd %s received.", len(buffer.raw_json), resp.ContentLength, v), TOPIC);
         }
         /* clear escape */
         replace(string(buffer.raw_json), "\\\"", "\"", buffer.escape_json);
@@ -169,17 +169,17 @@ func Asclepius() {
         /* get result from JSON */
         result := int(C.getIPs((*C.char)(unsafe.Pointer(&buffer.escape_json[0])), (*C.char)(unsafe.Pointer(&buffer.raw_json[0]))));
         if result <= 0 {
-          util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to parse JSON from etcd: %d", result), TOPIC);
+          util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[Asclepius] failed to parse JSON from etcd: %d", result), TOPIC);
           return;
         } else {
           if opts.debug {
-            util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("JSON parse result: %d", result), TOPIC);
+            util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[Asclepius] JSON parse result: %d", result), TOPIC);
           }
           /* parse and store host/ip pair */
           ///*
           err := fillHosts(string(buffer.raw_json[:result]));
           if err != nil {
-            util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to parse host records from etcd: %s", err.Error()), TOPIC);
+            util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[Asclepius] failed to parse host records from etcd: %s", err.Error()), TOPIC);
             return;
           }
           fillInc();
@@ -194,7 +194,7 @@ func Asclepius() {
 func printHistory() {
   for _, v := range etcds {
     observation := kube_status[v].observation;
-    output := fmt.Sprintf("Once offline svcs of %s:", v);
+    output := fmt.Sprintf("[printHistory] Once offline svcs of %s:", v);
     first := true;
 //    fmt.Fprintf(os.Stderr, "etcd %s: observation: %v, current: %v\n", v, kube_status[v].observation, kube_status[v].current);
     for k, cnt := range observation.list {
@@ -223,7 +223,7 @@ func printHistory() {
 func printKubeInfo(ki *KubeInfo) {
   if opts.debug {
     for k, v := range ki.pod_ip {
-      util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf(" {%s: %s}", k, v), TOPIC);
+      util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[printKubeInfo] {%s: %s}", k, v), TOPIC);
     }
   }
 }
@@ -264,7 +264,7 @@ func isInfoEqual(l *KubeInfo, r *KubeInfo) (bool) {
     for k, _ := range l.pod_ip {
       if _, ok := r.pod_ip[k]; !ok {
         if opts.debug {
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s cannot be found in right set", k), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[isInfoEqual] %s cannot be found in right set", k), TOPIC);
         }
         return false;
       } else {
@@ -280,7 +280,7 @@ func isInfoEqual(l *KubeInfo, r *KubeInfo) (bool) {
         equal = isIPEqual(l.pod_ip[k], r.pod_ip[k]);
         if !equal {
           if opts.debug {
-            util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s is clean? %v", k, equal), TOPIC);
+            util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[isInfoEqual] %s is clean? %v", k, equal), TOPIC);
           }
           return equal;
         }
@@ -363,12 +363,12 @@ func writeKubeInfo(key string) {
   src, err := os.Open(HOST);
   defer src.Close();
   if err != nil {
-    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to open host file (%s): %s", HOST, err.Error()), TOPIC);
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to open host file (%s): %s", HOST, err.Error()), TOPIC);
   } else {
     dest, err := os.Create(HOST + ".tmp");
     defer dest.Close();
     if err != nil {
-      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to open tmp host file (%s): %s", HOST + ".tmp", err.Error()), TOPIC);
+      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to open tmp host file (%s): %s", HOST + ".tmp", err.Error()), TOPIC);
     } else {
       scanner := bufio.NewScanner(src);
       head := false;
@@ -438,18 +438,18 @@ func getDNSMasqPID() (int, error) {
 func reloadDNSMasq() {
   pid, err := getDNSMasqPID();
   if err != nil {
-    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to get pid of dnsmasq: %s", err.Error()), TOPIC);
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[reloadDNSMasq] failed to get pid of dnsmasq: %s", err.Error()), TOPIC);
   } else {
     if pid == -1 {
-      util.GenericLogPrinter(opts.host, "ERR", "impossible condition while getting pid of dnsmasq", TOPIC);
+      util.GenericLogPrinter(opts.host, "ERR", "[reloadDNSMasq] impossible condition while getting pid of dnsmasq", TOPIC);
     }
     pc, err := os.FindProcess(pid);
     if err != nil {
-      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to find proccess via pid %d", pid), TOPIC);
+      util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[reloadDNSMasq] failed to find proccess via pid %d", pid), TOPIC);
     } else {
       err =  pc.Signal(syscall.SIGHUP);
       if err != nil {
-        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to send signal to %d: %s", pid, err.Error()), TOPIC);
+        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[reloadDNSMasq] failed to send signal to %d: %s", pid, err.Error()), TOPIC);
       }
     }
   }
@@ -478,7 +478,7 @@ func monitorInfo(key string) {
       } else {
         /* got trend, it's recently offline */
         observation.trend[k] = cnt + 1;
-        util.GenericLogPrinter(opts.host, "WARN", fmt.Sprintf("%v is still offline for %d intervals...", k, observation.trend[k]), TOPIC);
+        util.GenericLogPrinter(opts.host, "WARN", fmt.Sprintf("[monitorInfo] %v is still offline for %d intervals...", k, observation.trend[k]), TOPIC);
       }
     } else {
       /* k is back, remove k from observation list? nope, decrease the cnt for now */
@@ -528,15 +528,15 @@ func fillInc() {
 //        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
         writeKubeInfo(v);
         if opts.debug {
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("inc: "), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] inc: "), TOPIC);
           printKubeInfo(kube_status[v].inc);
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("current:"), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] current:"), TOPIC);
           printKubeInfo(kube_status[v].current);
         }
       } else {
         if opts.debug {
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s is clean? %v!", v, clean), TOPIC);
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] %s is clean? %v!", v, clean), TOPIC);
         }
       }
       monitorInfo(v);
@@ -556,10 +556,10 @@ func fillInc() {
 //        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
       writeKubeInfo(v);
       if opts.debug {
-        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
-        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("inc: "), TOPIC);
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] inc: "), TOPIC);
         printKubeInfo(kube_status[v].inc);
-        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("current:"), TOPIC);
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] current:"), TOPIC);
         printKubeInfo(kube_status[v].current);
       }
     }
@@ -616,7 +616,7 @@ func checkIPFmt(ip string) (error) {
 func checkETCDIPFmt(ip string) (error) {
   tokens := strings.Split(ip, ":");
   if len(tokens) != 2 {
-    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("(ETCD) IP format error, expected <IP>:<Port>, got %s", ip), TOPIC);
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[checkETCDIPFmt] (ETCD) IP format error, expected <IP>:<Port>, got %s", ip), TOPIC);
     return errors.New(fmt.Sprintf("(ETCD) IP format error, expected <IP>:<Port>, got %s", ip));
   } else {
     port, err := strconv.Atoi(tokens[1]);
