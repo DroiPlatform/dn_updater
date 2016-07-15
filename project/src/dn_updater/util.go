@@ -137,7 +137,7 @@ func Caduceus() {
 }
 
 func Asclepius() {
-  for _, v := range etcds {
+  for k, v := range etcds {
     resp, err := buffer.client.Do(buffer.requests[v]);
     if err != nil {
       util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to do request: %s", err.Error()), TOPIC);
@@ -148,9 +148,14 @@ func Asclepius() {
         util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to read from respnose: %s", err.Error()), TOPIC);
         return;
       } else {
-        /* clear tmp buffer 
+        /* clear tmp buffer */
+        /*
         for i:= 0; i < SIZE_BUF; i++ {
           buffer.escape_json[i] = byte(0);
+        }
+        //*/
+        if opts.debug {
+          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[Asclepius] Response of %d (%d) bytes from etcd %s received.", len(buffer.raw_json), resp.ContentLength, k), TOPIC);
         }
         /* clear escape */
         replace(string(buffer.raw_json), "\\\"", "\"", buffer.escape_json);
