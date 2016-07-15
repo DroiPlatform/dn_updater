@@ -184,7 +184,11 @@ func Asclepius() {
             return;
           }
           fillInc();
-          if rnd_cnt == uint8(0) {
+          throttle := uint8(opts.throttle);
+          if throttle == uint8(0) {
+            throttle = uint8(1);
+          }
+          if rnd_cnt % throttle == uint8(0) {
             printHistory();
           }
           //*/

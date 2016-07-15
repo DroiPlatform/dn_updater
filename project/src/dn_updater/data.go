@@ -29,6 +29,7 @@ type Options struct {
   json int;
   poll int;
   pool int;
+  throttle int;
   brokers string;
   domain string;
   etcd string;
@@ -79,7 +80,8 @@ func init() {
   flag.BoolVar(&opts.debug, "debug", false, "print debug message");
   flag.IntVar(&opts.json, "json", 134217728, "buffer size of json from etcd (byte)");
   flag.IntVar(&opts.poll, "poll", 5, "etcd polling interval");
-  flag.IntVar(&opts.pool, "pooll", 3, "pool size for log producers");
+  flag.IntVar(&opts.pool, "pool", 3, "pool size for log producers");
+  flag.IntVar(&opts.pool, "throttle", 100, "throttle for debug msg frequency, 1-255");
   flag.StringVar(&opts.brokers, "brokers", "10.128.112.186:9092", "ip:port for kafka brokers, seperated by comma");
   flag.StringVar(&opts.domain, "domain", "", "domain for etcds, seperated by comma");
   flag.StringVar(&opts.etcd, "etcd", "", "ip:port for etcds, seperated by comma");
