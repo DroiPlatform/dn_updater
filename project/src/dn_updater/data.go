@@ -4,6 +4,7 @@ import "errors";
 import "flag";
 import "fmt";
 import "net/http";
+//import "os";
 import "strings";
 
 import util "tyd_util";
@@ -16,7 +17,8 @@ const TAIL = "# tail of dn_updater";
 const HOST = "/etc/hosts";
 const DNSMasq = "/var/run/dnsmasq/dnsmasq.pid";
 
-const SIZE_BUF = 65536;
+//const SIZE_BUF = 65536;
+const SIZE_BUF = 1048576;
 
 const URI = "/v2/keys/registry/services/endpoints/tyd";
 
@@ -24,6 +26,7 @@ const URI = "/v2/keys/registry/services/endpoints/tyd";
 type Options struct {
   build bool;
   debug bool;
+  json int;
   poll int;
   pool int;
   brokers string;
@@ -37,14 +40,22 @@ type KubeStatus struct {
   clean bool;
   firstborn bool;
   domain string;
+  past *KubeInfo;
   current *KubeInfo;
   inc *KubeInfo;
+  observation *Observation;
 }
 
 /* structure for kube info */
 type KubeInfo struct {
   /* mapping from service name to pod ip */
   pod_ip map[string]string;
+}
+
+/* observation list */
+type Observation struct {
+  list map[string]int;
+  trend map[string]int;
 }
 
 /* buffer */
@@ -65,6 +76,7 @@ var buffer TmpBuffer;
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
   flag.BoolVar(&opts.debug, "debug", false, "print debug message");
+  flag.IntVar(&opts.json, "json", 134217728, "buffer size of json from etcd (byte)");
   flag.IntVar(&opts.poll, "poll", 5, "etcd polling interval");
   flag.IntVar(&opts.pool, "pooll", 3, "pool size for log producers");
   flag.StringVar(&opts.brokers, "brokers", "10.128.112.186:9092", "ip:port for kafka brokers, seperated by comma");
@@ -93,8 +105,8 @@ func initData() (error){
   /* initiate tmp buffers and shared resources */
   buffer.client = &http.Client{};
   buffer.requests = make(map[string]*http.Request);
-  buffer.raw_json = make([]byte, SIZE_BUF);
-  buffer.escape_json = make([]byte, SIZE_BUF);
+  buffer.raw_json = make([]byte, opts.json);
+  buffer.escape_json = make([]byte, opts.json);
   buffer.hosts = make(map[string]string);
 
   /* initiate etcd related resources */
@@ -109,7 +121,8 @@ func initData() (error){
   }
   kube_status = make(map[string]KubeStatus);
   for k, v := range etcds {
-    kube_status[v] = KubeStatus{firstborn: false, clean: false, domain: domains[k], inc: &KubeInfo{make(map[string]string)}, current: &KubeInfo{make(map[string]string)}};
+    kube_status[v] = KubeStatus{firstborn: false, clean: false, domain: domains[k], inc: &KubeInfo{make(map[string]string)}, past: &KubeInfo{make(map[string]string)}, current: &KubeInfo{make(map[string]string)}, observation: &Observation{list: make(map[string]int), trend: make(map[string]int)}};
+//    fmt.Fprintf(os.Stderr, "observation of %s: %v\n", v, kube_status[v].observation);
     buffer.requests[v], err = http.NewRequest("GET", fmt.Sprintf("http://%s%s", v, URI), nil);
     if err != nil {
       return err;

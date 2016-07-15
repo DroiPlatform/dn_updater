@@ -148,21 +148,28 @@ func Asclepius() {
         util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to read from respnose: %s", err.Error()), TOPIC);
         return;
       } else {
+        /* clear tmp buffer 
         for i:= 0; i < SIZE_BUF; i++ {
           buffer.escape_json[i] = byte(0);
         }
+        /* clear escape */
         replace(string(buffer.raw_json), "\\\"", "\"", buffer.escape_json);
         replace(string(buffer.escape_json), "\\n", "", buffer.escape_json);
         replace(string(buffer.escape_json), "\"{", "{", buffer.escape_json);
         replace(string(buffer.escape_json), "}\"", "}", buffer.escape_json);
         if opts.debug {
-          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("cJSON input: %s", buffer.escape_json), TOPIC);
+//          util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("cJSON input: %s", buffer.escape_json), TOPIC);
         }
+        //fmt.Fprintf(os.Stderr, "cJSON input: %s\n", buffer.escape_json);
+        /* get result from JSON */
         result := int(C.getIPs((*C.char)(unsafe.Pointer(&buffer.escape_json[0])), (*C.char)(unsafe.Pointer(&buffer.raw_json[0]))));
         if result <= 0 {
           util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to parse JSON from etcd: %d", result), TOPIC);
           return;
         } else {
+          if opts.debug {
+            util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("JSON parse result: %d", result), TOPIC);
+          }
           /* parse and store host/ip pair */
           ///*
           err := fillHosts(string(buffer.raw_json[:result]));
@@ -171,10 +178,40 @@ func Asclepius() {
             return;
           }
           fillInc();
+          printHistory();
           //*/
         }
       }
     }
+  }
+}
+
+func printHistory() {
+  for _, v := range etcds {
+    observation := kube_status[v].observation;
+    output := fmt.Sprintf("Once offline svcs of %s:", v);
+    first := true;
+//    fmt.Fprintf(os.Stderr, "etcd %s: observation: %v, current: %v\n", v, kube_status[v].observation, kube_status[v].current);
+    for k, cnt := range observation.list {
+      if trend, ok := observation.trend[k]; !ok {
+        /* no trend */
+        if first {
+          output = fmt.Sprintf("%s %s[%d/%v]", output, k, cnt, nil);
+          first = false;
+        } else {
+          output = fmt.Sprintf("%s; %s[%d/%v]", output, k, cnt, nil);
+        }
+      } else {
+        /* got trend record */
+        if first {
+          output = fmt.Sprintf("%s %s[%d/%d]", output, k, cnt, trend);
+          first = false;
+        } else {
+          output = fmt.Sprintf("%s; %s[%d/%d]", output, k, cnt, trend);
+        }
+      }
+    }
+    util.GenericLogPrinter(opts.host, "DEBUG", output, TOPIC);
   }
 }
 
@@ -276,30 +313,35 @@ func fillHosts(in string) (error) {
 
 func fillInfo(ki *KubeInfo) (error) {
   for k, v := range buffer.hosts {
-    ips := strings.Split(v, ",");
-    if len(ips) == 1 && ips[0] == "-1" {
+    if v == "" {
       continue;
     } else {
-      for _, vip := range ips {
-        if err := checkIPFmt(vip); err != nil {
-          flushInfo(ki);
-          return err;
+      ips := strings.Split(v, ",");
+      if len(ips) == 1 && ips[0] == "-1" {
+        continue;
+      } else {
+        for i := 0; i < len(ips); i++ {
+          if err := checkIPFmt(ips[i]); err != nil {
+            util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[fillInfo] ips[%s(%d)]: %s of %x\n", k, i, ips[i], []byte(v)), TOPIC);
+            flushInfo(ki);
+            return err;
+          }
         }
+        ki.pod_ip[k] = v;
       }
-      ki.pod_ip[k] = v;
     }
   }
   return nil;
 }
 
-func updateKubeStatus(key string, firstborn bool, clean bool, inc *KubeInfo, current *KubeInfo) {
+func updateKubeStatus(key string, firstborn bool, clean bool, inc *KubeInfo, current *KubeInfo, past *KubeInfo, observation *Observation) {
   /*
   flushInfo(kube_status[key].inc);
   flushInfo(kube_status[key].current);
   */
   domain := kube_status[key].domain;
   delete(kube_status, key);
-  kube_status[key] = KubeStatus {firstborn: firstborn, clean: clean, domain: domain, inc: inc, current: current};
+  kube_status[key] = KubeStatus {firstborn: firstborn, clean: clean, domain: domain, inc: inc, current: current, past: past, observation: observation};
 }
 
 func printHosts(dest *os.File, key string) {
@@ -408,10 +450,66 @@ func reloadDNSMasq() {
   }
 }
 
+func copyInfo(dst, src *KubeInfo) {
+  flushInfo(dst);
+  for k, v := range src.pod_ip {
+    dst.pod_ip[k] = v;
+  }
+}
+
+func monitorInfo(key string) {
+  observation := kube_status[key].observation;
+  current := kube_status[key].current;
+  past := kube_status[key].past;
+  for k, v := range observation.list {
+    /* is anyone back online? */
+    if _, ok := current.pod_ip[k]; !ok {
+      /* nope, still offline */
+      observation.list[k] = v + 1;
+      /* record the trend */
+      if cnt, ok := observation.trend[k]; !ok {
+        /* no trend, it's not recently offline */
+        observation.trend[k] = 1;
+      } else {
+        /* got trend, it's recently offline */
+        observation.trend[k] = cnt + 1;
+        util.GenericLogPrinter(opts.host, "WARN", fmt.Sprintf("%v is still offline for %d intervals...", k, observation.trend[k]), TOPIC);
+      }
+    } else {
+      /* k is back, remove k from observation list? nope, decrease the cnt for now */
+      //delete(observation.list, k);
+      if v == 0 {
+        delete(observation.list, k);
+      } else {
+        observation.list[k] = v - 1;
+      }
+      /* deal with trend record */
+      if _, ok := observation.trend[k]; !ok {
+        /* no trend, do nothing */
+      } else {
+        /* got trend, erase the trend record */
+        delete(observation.trend, k);
+      }
+    }
+  }
+  for k, _ := range past.pod_ip {
+    if _, ok := current.pod_ip[k]; !ok {
+      cnt, ok := observation.list[k];
+      if !ok {
+        observation.list[k] = 1;
+      } else {
+        observation.list[k] = cnt + 1;
+      }
+    }
+  }
+}
+
 func fillInc() {
   for _, v := range etcds {
     inc := kube_status[v].inc;
     current := kube_status[v].current;
+    past := kube_status[v].past;
+    observation := kube_status[v].observation;
     if kube_status[v].firstborn {
       /* not first time, flush incoming buffer for incoming info  */
       flushInfo(inc);
@@ -420,7 +518,9 @@ func fillInc() {
       if !clean {
         flushInfo(current);
         fillInfo(current);
-        updateKubeStatus(v, true, clean, inc, current);
+//        fmt.Fprintf(os.Stderr, "current b4: %v\n", kube_status[v].current);
+        updateKubeStatus(v, true, clean, inc, current, past, observation);
+//        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
         writeKubeInfo(v);
         if opts.debug {
           util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
@@ -434,11 +534,21 @@ func fillInc() {
           util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("%s is clean? %v!", v, clean), TOPIC);
         }
       }
+      monitorInfo(v);
+      copyInfo(past, current);
     } else {
       /* first time, make space for incoming info and current info */
-      fillInfo(inc);
-      fillInfo(current);
-      updateKubeStatus(v, true, true, inc, current);
+      err := fillInfo(inc);
+      if err != nil {
+        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[fillInc] failed to fill inc: %s", err.Error()), TOPIC);
+      }
+      err = fillInfo(current);
+      if err != nil {
+        util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[fillInc] failed to fill current: %s", err.Error()), TOPIC);
+      }
+//        fmt.Fprintf(os.Stderr, "current b4: %v\n", kube_status[v].current);
+      updateKubeStatus(v, true, true, inc, current, past, observation);
+//        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
       writeKubeInfo(v);
       if opts.debug {
         util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
@@ -481,15 +591,15 @@ func replace(s, old_str, new_str string, out []byte) {
 func checkIPFmt(ip string) (error) {
   ips := strings.Split(ip, ".");
   if len(ips) != 4 {
-    return errors.New(fmt.Sprintf("(IP) Invalid IP format, expected <num>.<num>.<num>.<num>, got %s", ip));
+    return errors.New(fmt.Sprintf("[checkIPFmt] Invalid IP format, expected <num>.<num>.<num>.<num>, got %s", ip));
   } else {
     for _, v := range ips {
       num, err := strconv.Atoi(v);
       if err != nil {
-        return errors.New(fmt.Sprintf("(IP) Failed to parse IP: %s", err.Error()));
+        return errors.New(fmt.Sprintf("[checkIPFmt] Failed to parse IP: %s", err.Error()));
       } else {
         if num > 255 || num < 0 {
-          return errors.New(fmt.Sprintf("(IP) Invalid IP: %s", ip));
+          return errors.New(fmt.Sprintf("[checkIPFmt] Invalid IP: %s", ip));
         }
       }
     }
