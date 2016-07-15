@@ -132,6 +132,7 @@ import util "tyd_util";
 func Caduceus() {
   for {
     Asclepius();
+    rnd_cnt++;
     time.Sleep(time.Duration(opts.poll) * time.Second);
   }
 }
@@ -183,7 +184,9 @@ func Asclepius() {
             return;
           }
           fillInc();
-          printHistory();
+          if rnd_cnt == uint8(0) {
+            printHistory();
+          }
           //*/
         }
       }

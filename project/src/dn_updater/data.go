@@ -72,6 +72,7 @@ var opts Options;
 var etcds []string;
 var domains []string;
 var buffer TmpBuffer;
+var rnd_cnt uint8;
 
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
@@ -102,6 +103,8 @@ func initLog() (error) {
 }
 
 func initData() (error){
+  /* initial global variables */
+  rnd_cnt = uint8(0);
   /* initiate tmp buffers and shared resources */
   buffer.client = &http.Client{};
   buffer.requests = make(map[string]*http.Request);
