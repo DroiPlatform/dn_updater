@@ -105,7 +105,7 @@ func initData() (error){
   /* initiate tmp buffers and shared resources */
   buffer.client = &http.Client{};
   buffer.requests = make(map[string]*http.Request);
-  buffer.raw_json = make([]byte, opts.json);
+//  buffer.raw_json = make([]byte, opts.json);
   buffer.escape_json = make([]byte, opts.json);
   buffer.hosts = make(map[string]string);
 
