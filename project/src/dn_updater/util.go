@@ -485,7 +485,7 @@ func monitorInfo(key string) {
       } else {
         /* got trend, it's recently offline */
         observation.trend[k] = cnt + 1;
-        util.GenericLogPrinter(opts.host, "WARN", fmt.Sprintf("[monitorInfo] %v is still offline for %d intervals...", k, observation.trend[k]), TOPIC);
+        util.GenericLogPrinter(opts.host, "WARN", fmt.Sprintf("[monitorInfo] %v is still offline for %d seconds...", k, observation.trend[k] * opts.poll), TOPIC);
       }
     } else {
       /* k is back, remove k from observation list? nope, decrease the cnt for now */
