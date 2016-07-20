@@ -1,6 +1,7 @@
 package tyd_util;
 
 import "fmt";
+import "os";
 import "time";
 
 import logutil "tyd_util/log_util";
@@ -45,12 +46,19 @@ func getTime() (string) {
 
 /* high level log printer for general purpose */
 func GenericLogPrinter(host string, lvl string, msg string, topic string) {
+  hostname, err := os.Hostname();
+  if err != nil {
+    fmt.Fprintf(os.Stderr, "failed to get hostname: %s\n", err.Error);
+    return;
+  }
   lc := logutil.LogContent {
     Version: 1,
     Time: getTime(),
     Lvl: lvl,
+    Mod: hostname,
     Msg: msg,
   }
+  fmt.Printf("hostname: %s\n", lc.Mod);
   if host != "" {
     lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
   }

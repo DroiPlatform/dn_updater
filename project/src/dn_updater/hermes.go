@@ -17,10 +17,10 @@ func main() {
   }
   err = initHermes();
   if err != nil {
-    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("failed to initiate: %s", err.Error()), TOPIC);
+    util.GenericLogPrinter(mod, "ERR", fmt.Sprintf("failed to initiate: %s", err.Error()), TOPIC);
     fmt.Fprintf(os.Stderr, "failed to initiate: %s\n", err.Error());
     os.Exit(1);
   }
-  util.GenericLogPrinter(opts.host, "INFO", fmt.Sprintf("domain name updater activated, target etcds are %s", opts.etcd), TOPIC);
+  util.GenericLogPrinter(mod, "INFO", fmt.Sprintf("domain name updater activated, target etcds are %s", opts.etcd), TOPIC);
   Caduceus();
 }

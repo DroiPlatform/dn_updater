@@ -78,10 +78,14 @@ func IPListWriter(lc *LogContent) {
 /* Log Writer for Pooled General Purpose */
 func GeneralLogWriter(lc *LogContent, mod string) {
   lc.Aid = "";
-  lc.Mod = mod;
+  topic := mod;
+  fmt.Printf("topic: %s, module: %s\n", mod, lc.Mod);
+  if lc.Mod == "" {
+    lc.Mod = mod;
+  }
   msg := producer.Message {
     Msg: logWrapper(lc),
-    Topic: lc.Mod,
+    Topic: topic,
   }
   p := kp.GetConnection();
   producer.WriteMsg(p, msg);

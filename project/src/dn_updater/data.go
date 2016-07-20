@@ -4,7 +4,7 @@ import "errors";
 import "flag";
 import "fmt";
 import "net/http";
-//import "os";
+import "os";
 import "strings";
 
 import util "tyd_util";
@@ -74,6 +74,8 @@ var etcds []string;
 var domains []string;
 var buffer TmpBuffer;
 var rnd_cnt uint8;
+var host string;
+var mod string;
 
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
@@ -107,6 +109,10 @@ func initLog() (error) {
 func initData() (error){
   /* initial global variables */
   rnd_cnt = uint8(0);
+  mod = os.Getenv("HOSTNAME");
+  /* get pod ip addr */
+  host = getLocalIP();
+  fmt.Printf("[initData] host: %s\n", host);
   /* initiate tmp buffers and shared resources */
   buffer.client = &http.Client{};
   buffer.requests = make(map[string]*http.Request);

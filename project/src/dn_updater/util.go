@@ -120,6 +120,7 @@ import "errors";
 import "fmt";
 import "io/ioutil";
 import "os";
+import "os/exec";
 import "strconv";
 import "strings";
 import "syscall";
@@ -364,6 +365,13 @@ func printHosts(dest *os.File, key string) {
       fmt.Fprintf(dest, "%s %s.%s %s\n", ip, k, kube_status[key].domain, k);
     }
   }
+  observation := kube_status[key].observation;
+  if true {
+    util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[printHosts] IPs of %d pods are written, prepared to write %d inactive pods", len(info.pod_ip), len(observation.trend)), TOPIC);
+  }
+  for k, _ := range observation.trend {
+    fmt.Fprintf(dest, "%s %s.%s %s\n", host, k, kube_status[key].domain, k);
+  }
 }
 
 func writeKubeInfo(key string) {
@@ -414,8 +422,16 @@ func writeKubeInfo(key string) {
       }
       if save {
         timestamp := time.Now().UnixNano()/int64(1000000);
-        os.Rename(HOST, fmt.Sprintf("%s.%d", HOST, timestamp));
-        os.Rename(HOST + ".tmp", HOST);
+        //err := os.Rename(HOST, fmt.Sprintf("%s.%d", HOST, timestamp));
+        err := exec.Command("cp", HOST, fmt.Sprintf("%s.%d", HOST, timestamp)).Run();
+        if err != nil {
+          util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to move host file (%s) to backup (%s): %s", HOST, fmt.Sprintf("%s.%d", HOST, timestamp), err.Error()), TOPIC);
+        }
+        //err = os.Rename(HOST + ".tmp", HOST);
+        err = exec.Command("cp", HOST + ".tmp", HOST).Run();
+        if err != nil {
+          util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to move tmp host file (%s) to host file (%s): %s", HOST + ".tmp", HOST, err.Error()), TOPIC);
+        }
         reloadDNSMasq();
       }
     }
@@ -509,8 +525,18 @@ func monitorInfo(key string) {
       cnt, ok := observation.list[k];
       if !ok {
         observation.list[k] = 1;
+        if trend, ok := observation.trend[k]; !ok {
+          observation.trend[k] = 1;
+        } else {
+          observation.trend[k] = trend + 1;
+        }
       } else {
         observation.list[k] = cnt + 1;
+        if trend, ok := observation.trend[k]; !ok {
+          observation.trend[k] = 1;
+        } else {
+          observation.trend[k] = trend + 1;
+        }
       }
     }
   }
@@ -533,7 +559,6 @@ func fillInc() {
 //        fmt.Fprintf(os.Stderr, "current b4: %v\n", kube_status[v].current);
         updateKubeStatus(v, true, clean, inc, current, past, observation);
 //        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
-        writeKubeInfo(v);
         if opts.debug {
           util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
           util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] inc: "), TOPIC);
@@ -547,6 +572,9 @@ func fillInc() {
         }
       }
       monitorInfo(v);
+      if !clean {
+        writeKubeInfo(v);
+      }
       copyInfo(past, current);
     } else {
       /* first time, make space for incoming info and current info */
@@ -561,9 +589,9 @@ func fillInc() {
 //        fmt.Fprintf(os.Stderr, "current b4: %v\n", kube_status[v].current);
       updateKubeStatus(v, true, true, inc, current, past, observation);
 //        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
+        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
       writeKubeInfo(v);
       if opts.debug {
-        util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
         util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] inc: "), TOPIC);
         printKubeInfo(kube_status[v].inc);
         util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] current:"), TOPIC);
@@ -644,12 +672,44 @@ func checkETCDIPFmt(ip string) (error) {
 
 func checkETCD() (error) {
   var err error;
-  for _, v := range etcds {
-    err = checkETCDIPFmt(v);
+  for i := 0; i < len(etcds); i++ {
+    err = checkETCDIPFmt(etcds[i]);
     if err != nil {
       return err;
     }
   }
   return nil;
+}
+
+func getLocalIP() (string) {
+  //cmd := exec.Command("ip", "addr", "|", "grep", "global");
+  cmd := exec.Command("ip", "addr");
+  raw, err := cmd.Output();
+  if err != nil {
+    util.GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getIP] failed to get ip addr: %s", err.Error()), TOPIC);
+    return "";
+  } else {
+    lines := strings.Split(string(raw), string(10));
+    for i := 0; i < len(lines); i++ {
+      fields := strings.Split(strings.Trim(lines[i], " \t"), " ");
+      global := false;
+      if len(fields) > 4 {
+        if fields[0] == "inet" {
+          for j := 0; j < len(fields); j++ {
+            if fields[j] == "global" {
+              global = true;
+            }
+          }
+          if global {
+            ip := strings.Split(fields[1], "/");
+            if len(ip) == 2 {
+              return ip[0];
+            }
+          }
+        }
+      }
+    }
+  }
+  return "";
 }
 
