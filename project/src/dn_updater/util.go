@@ -131,10 +131,26 @@ import "unsafe";
 import util "tyd_util";
 
 func Caduceus() {
+  ttl := time.Duration(opts.suicide)
+  if opts.test {
+    ttl *= time.Second;
+  } else {
+    ttl *= time.Hour;
+  }
+  poll := time.Duration(opts.poll) * time.Second;
+  death := time.Duration(0);
   for {
     Asclepius();
     rnd_cnt++;
-    time.Sleep(time.Duration(opts.poll) * time.Second);
+    time.Sleep(poll);
+    //util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[Caduceus] ttl: %d", ttl), TOPIC);
+    if opts.suicide != 0 {
+      ttl -= poll;
+      if ttl <= death {
+        util.GenericLogPrinter(opts.host, "WARN", fmt.Sprintf("[Caduceus] time's up, suicide!"), TOPIC);
+        os.Remove(HEALTH);
+      }
+    }
   }
 }
 

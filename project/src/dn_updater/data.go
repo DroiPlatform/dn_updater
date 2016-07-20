@@ -15,6 +15,7 @@ const TOPIC = "dn_updater"
 const HEAD = "# head of dn_updater";
 const TAIL = "# tail of dn_updater";
 const HOST = "/etc/hosts";
+const HEALTH = "/opt/healthz";
 const DNSMasq = "/var/run/dnsmasq/dnsmasq.pid";
 
 //const SIZE_BUF = 65536;
@@ -26,9 +27,11 @@ const URI = "/v2/keys/registry/services/endpoints/tyd";
 type Options struct {
   build bool;
   debug bool;
+  test bool;
   json int;
   poll int;
   pool int;
+  suicide int;
   throttle int;
   brokers string;
   domain string;
@@ -80,10 +83,12 @@ var mod string;
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
   flag.BoolVar(&opts.debug, "debug", false, "print debug message");
+  flag.BoolVar(&opts.test, "test", false, "trigger test mode");
   flag.IntVar(&opts.json, "json", 134217728, "buffer size of json from etcd (byte)");
   flag.IntVar(&opts.poll, "poll", 5, "etcd polling interval");
   flag.IntVar(&opts.pool, "pool", 3, "pool size for log producers");
-  flag.IntVar(&opts.pool, "throttle", 100, "throttle for debug msg frequency, 1-255");
+  flag.IntVar(&opts.suicide, "suicide", 0, "suicide after <suicide> hours, 0 for never");
+  flag.IntVar(&opts.throttle, "throttle", 100, "throttle for debug msg frequency, 1-255");
   flag.StringVar(&opts.brokers, "brokers", "10.128.112.186:9092", "ip:port for kafka brokers, seperated by comma");
   flag.StringVar(&opts.domain, "domain", "", "domain for etcds, seperated by comma");
   flag.StringVar(&opts.etcd, "etcd", "", "ip:port for etcds, seperated by comma");
