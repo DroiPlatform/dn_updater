@@ -1,6 +1,7 @@
 package log_util;
 
 import "fmt";
+import "os";
 import "strings";
 import "sync";
 
@@ -15,6 +16,12 @@ type LogContent struct {
   Lvl string;
   Msg string;
   Opt string;
+  /* required fields for webscraper */
+  RequestSpent string;    //transfer to int
+  RequestLength string;   //transfer to int
+  ResponseLength string;  //transfer to int
+  Identifier string;      //transfer to int
+  AccessTime string;      //transfer to int
 }
 
 var wagon producer.Wagon;
@@ -32,6 +39,22 @@ func logWrapper(lc *LogContent) (string) {
   out = fmt.Sprintf("%s \"Pd\": \"%s\",", out, lc.Mod);
   if lc.Opt != "" {
     out = fmt.Sprintf("%s \"Op\": %s,", out, lc.Opt);
+  }
+  /* webscraper */
+  if lc.RequestSpent != "" {
+    out = fmt.Sprintf("%s \"RequestSpent\": %s,", out, lc.RequestSpent);
+  }
+  if lc.RequestLength != "" {
+    out = fmt.Sprintf("%s \"RequestLength\": %s,", out, lc.RequestLength);
+  }
+  if lc.ResponseLength != "" {
+    out = fmt.Sprintf("%s \"ResponseLength\": %s,", out, lc.ResponseLength);
+  }
+  if lc.Identifier != "" {
+    out = fmt.Sprintf("%s \"Identifier\": %s,", out, lc.Identifier);
+  }
+  if lc.AccessTime != "" {
+    out = fmt.Sprintf("%s \"AccessTime\": \"%s\",", out, lc.AccessTime);
   }
   out = fmt.Sprintf("%s \"M\": \"%s\"", out, lc.Msg);
   out = fmt.Sprintf("%s}", out);
@@ -76,12 +99,12 @@ func IPListWriter(lc *LogContent) {
 //*/
 
 /* Log Writer for Pooled General Purpose */
-func GeneralLogWriter(lc *LogContent, mod string) {
+func GeneralLogWriter(lc *LogContent, mod string, topic string) {
   lc.Aid = "";
-  topic := mod;
-  fmt.Printf("topic: %s, module: %s\n", mod, lc.Mod);
-  if lc.Mod == "" {
+  if mod != "" {
     lc.Mod = mod;
+  } else {
+    lc.Mod = os.Getenv("HOSTNAME");
   }
   msg := producer.Message {
     Msg: logWrapper(lc),
