@@ -28,18 +28,18 @@ type HTTPConf struct {
 
 /* print HTTPConf */
 func (hc HTTPConf) PrintHTTPConf() {
-  util.PrintPrefix(uint64(0), uint64(0), "info");
+  util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "info");
   fmt.Printf("--------- Printing HTTP config\n");
   for key, value := range hc.S {
-    util.PrintPrefix(uint64(0), uint64(0), "info");
+    util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "info");
     fmt.Printf("%s: %s\n", key, value);
   }
   for key, value := range hc.I {
-    util.PrintPrefix(uint64(0), uint64(0), "info");
+    util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "info");
     fmt.Printf("%s: %d\n", key, value);
   }
   for key, value := range hc.B {
-    util.PrintPrefix(uint64(0), uint64(0), "info");
+    util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "info");
     fmt.Printf("%s: %v\n", key, value);
   }
 }
@@ -129,7 +129,7 @@ func setHTTPConfString(key string, value string, conf *HTTPConf) {
 func setHTTPConfInt(key string, value string, conf *HTTPConf) {
   ivalue, err := strconv.Atoi(value);
   if err != nil {
-    util.PrintPrefix(uint64(0), uint64(0), "error");
+    util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "error");
     fmt.Printf("Directive %s: expected positive integer, got %s\n", key, value);
   }
   conf.I[key] = ivalue;
@@ -142,7 +142,7 @@ func setHTTPConfBool(key string, value string, conf *HTTPConf) {
   } else if value == "false" {
     conf.B[key] = false;
   } else {
-    util.PrintPrefix(uint64(0), uint64(0), "error");
+    util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "error");
     fmt.Printf("Directive %s: expected boolean, got %s\n", key, value);
   }
 }
@@ -193,7 +193,7 @@ func GetHTTPConf(p_conf string) (*HTTPConf, error) {
       setHTTPConfBool(value.Key, value.Value, &hconf);
       break;
     default:
-      util.PrintPrefix(uint64(0), uint64(0), "error");
+      util.PrintPrefix(util.UID{uint8(0), uint64(0), uint64(0)}, "error");
       fmt.Printf("config error, unknown %d-the directive %s\n", key, value);
       break;
     }
@@ -205,3 +205,26 @@ func GetHTTPConf(p_conf string) (*HTTPConf, error) {
   }
 }
 
+/* parse parameters in URI */
+func ParseParameters(src string, dst *map[string]string, split_buffer, kv_buffer *[]string) (error) {
+  num_split := 0;
+  num_kv := 0;
+  util.Split(src, "&", split_buffer, &num_split);
+  /* clean up destination map */
+  for k, _ := range *dst {
+    delete(*dst, k);
+  }
+  /**/
+  for i := 0; i < num_split; i++ {
+    util.Split((*split_buffer)[i], "=", kv_buffer, &num_kv);
+    if num_kv != 2 {
+      fmt.Printf("[ParseParameters] error (%d:%d): %s\n", i, num_kv, (*split_buffer)[i]);
+      return errors.New(fmt.Sprintf("[ParseParameters] parameters are malformed: %s", src));
+    } else {
+      (*dst)[(*kv_buffer)[0]] = (*kv_buffer)[1];
+      //fmt.Printf("[ParseParameters] pair %d: %s => %s, %s\n", i, (*split_buffer)[i], (*kv_buffer)[0], (*kv_buffer)[1]);
+    }
+  }
+  //fmt.Printf("[ParseParameters] dst: %v\n", (*dst));
+  return nil;
+}

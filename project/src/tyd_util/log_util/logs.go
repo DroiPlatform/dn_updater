@@ -24,9 +24,42 @@ type LogContent struct {
   AccessTime string;      //transfer to int
 }
 
-var wagon producer.Wagon;
-
 var kp *(producer.ConnectionPoolWrapper);
+
+var sp *(producer.SiestaPoolWrapper);
+
+func LogWrapper(lc *LogContent) (string) {
+  out := fmt.Sprintf("{");
+  out = fmt.Sprintf("%s \"V\": \"%d\",", out, lc.Version);
+  out = fmt.Sprintf("%s \"T\": \"%s\",", out, lc.Time);
+  out = fmt.Sprintf("%s \"L\": \"%s\",", out, lc.Lvl);
+  if lc.Aid != "" {
+    out = fmt.Sprintf("%s \"Aid\": \"%s\",", out, lc.Aid);
+  }
+  out = fmt.Sprintf("%s \"Pd\": \"%s\",", out, lc.Mod);
+  if lc.Opt != "" {
+    out = fmt.Sprintf("%s \"Op\": %s,", out, lc.Opt);
+  }
+  /* webscraper */
+  if lc.RequestSpent != "" {
+    out = fmt.Sprintf("%s \"RequestSpent\": %s,", out, lc.RequestSpent);
+  }
+  if lc.RequestLength != "" {
+    out = fmt.Sprintf("%s \"RequestLength\": %s,", out, lc.RequestLength);
+  }
+  if lc.ResponseLength != "" {
+    out = fmt.Sprintf("%s \"ResponseLength\": %s,", out, lc.ResponseLength);
+  }
+  if lc.Identifier != "" {
+    out = fmt.Sprintf("%s \"Identifier\": %s,", out, lc.Identifier);
+  }
+  if lc.AccessTime != "" {
+    out = fmt.Sprintf("%s \"AccessTime\": \"%s\",", out, lc.AccessTime);
+  }
+  out = fmt.Sprintf("%s \"M\": \"%s\"", out, lc.Msg);
+  out = fmt.Sprintf("%s}", out);
+  return out;
+}
 
 func logWrapper(lc *LogContent) (string) {
   out := fmt.Sprintf("{");
@@ -61,9 +94,14 @@ func logWrapper(lc *LogContent) (string) {
   return out;
 }
 
-func InitKFKProducer(size int, brokers string) (error) {
+func InitLegacyKFKProducer(size int, brokers string) (error) {
   kp = &producer.ConnectionPoolWrapper{};
   return kp.InitPool(size, brokers);
+}
+
+func InitKFKProducer(size int, brokers string) (error) {
+  sp = &producer.SiestaPoolWrapper{};
+  return sp.InitSiestaPool(size, brokers);
 }
 
 /*
@@ -99,12 +137,13 @@ func IPListWriter(lc *LogContent) {
 //*/
 
 /* Log Writer for Pooled General Purpose */
-func GeneralLogWriter(lc *LogContent, mod string, topic string) {
+func GeneralLegacyLogWriter(lc *LogContent, topic string) {
   lc.Aid = "";
-  if mod != "" {
-    lc.Mod = mod;
+  mod, err := os.Hostname();
+  if err != nil {
+    lc.Mod = "";
   } else {
-    lc.Mod = os.Getenv("HOSTNAME");
+    lc.Mod = mod;
   }
   msg := producer.Message {
     Msg: logWrapper(lc),
@@ -113,6 +152,22 @@ func GeneralLogWriter(lc *LogContent, mod string, topic string) {
   p := kp.GetConnection();
   producer.WriteMsg(p, msg);
   kp.FreeConnection(p);
+}
+
+//func GenericSiestaWriter(lc *LogContent, topic string) {
+func GeneralLogWriter(lc *LogContent, topic string) {
+  lc.Aid = "";
+  mod, err := os.Hostname();
+  if err != nil {
+    lc.Mod = "";
+  } else {
+    lc.Mod = mod;
+  }
+  msg := producer.Message {
+    Msg: logWrapper(lc),
+    Topic: topic,
+  }
+  sp.WriteSiesta(msg);
 }
 
 /* Log Writer for PodFinder */

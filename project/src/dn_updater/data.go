@@ -7,9 +7,6 @@ import "net/http";
 import "os";
 import "strings";
 
-import util "tyd_util";
-import logutil "tyd_util/log_util";
-
 const TOPIC = "dn_updater"
 
 const HEAD = "# head of dn_updater";
@@ -37,6 +34,7 @@ type Options struct {
   domain string;
   etcd string;
   host string;
+  log string;
 }
 
 /* structure for kube status */
@@ -79,6 +77,7 @@ var buffer TmpBuffer;
 var rnd_cnt uint8;
 var host string;
 var mod string;
+var Kafka bool;
 
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
@@ -93,28 +92,21 @@ func init() {
   flag.StringVar(&opts.domain, "domain", "", "domain for etcds, seperated by comma");
   flag.StringVar(&opts.etcd, "etcd", "", "ip:port for etcds, seperated by comma");
   flag.StringVar(&opts.host, "host", "", "host identifier of this machine, usually IP");
+  flag.StringVar(&opts.log, "log", "dn_updater.log", "path to local log file.");
 }
 
 func initHermes() (error) {
-  err := initLog();
-  if err != nil {
-    return err;
-  }
-  err = initData();
+  err := initData();
   if opts.debug {
-    util.GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("result from initData: %v", err), TOPIC);
+    GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("result from initData: %v", err), TOPIC);
   }
   return err;
-}
-
-func initLog() (error) {
-  return logutil.InitKFKProducer(opts.pool, opts.brokers);
 }
 
 func initData() (error){
   /* initial global variables */
   rnd_cnt = uint8(0);
-  mod = os.Getenv("HOSTNAME");
+  mod, _ = os.Hostname();
   /* get pod ip addr */
   host = getLocalIP();
   fmt.Printf("[initData] host: %s\n", host);

@@ -40,7 +40,7 @@ func KSKFKLogPrinter(uid UID, lvl string, msg string) {
 }
 
 func getTime() (string) {
-    return fmt.Sprintf("%s.%06d", time.Now().Format("2006-01-02 15:04:05"), time.Now().Nanosecond()/1000);
+  return fmt.Sprintf("%s.%06d", time.Now().Format("2006-01-02 15:04:05"), time.Now().Nanosecond()/1000);
 }
 
 /* high level log printer for general purpose */
@@ -54,7 +54,7 @@ func GenericLogPrinter(host string, lvl string, msg string, topic string) {
   if host != "" {
     lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
   }
-  logutil.GeneralLogWriter(&lc, "", topic);
+  logutil.GeneralLogWriter(&lc, topic);
 }
 
 /* high level log printer for IPList */
@@ -65,8 +65,10 @@ func IPListLogPrinter(host string, lvl string, msg string) {
     Lvl: lvl,
     Msg: msg,
   }
-  lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
-  logutil.GeneralLogWriter(&lc, "ip_list", "ip_list");
+  if host != "" {
+    lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
+  }
+  logutil.GeneralLogWriter(&lc, "ip_list");
 }
 
 /* high level log printer for OAuthFwder */
@@ -77,8 +79,10 @@ func OALogPrinter(host string, lvl string, msg string) {
     Lvl: lvl,
     Msg: msg,
   }
-  lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
-  logutil.GeneralLogWriter(&lc, "", "oauth_service");
+  if host != "" {
+    lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
+  }
+  logutil.GeneralLogWriter(&lc, "oauth_service");
 }
 
 /* high level log printer for PodFinder */
@@ -89,8 +93,10 @@ func PFLogPrinter(host string, lvl string, msg string) {
     Lvl: lvl,
     Msg: msg,
   }
-  lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
-  logutil.GeneralLogWriter(&lc, "pod_finder", "pod_finder");
+  if host != "" {
+    lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
+  }
+  logutil.GeneralLogWriter(&lc, "pod_finder");
 }
 
 
@@ -102,8 +108,10 @@ func UpdaterLogPrinter(host string, lvl string, msg string) {
     Lvl: lvl,
     Msg: msg,
   }
-  lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
-  logutil.GeneralLogWriter(&lc, "keyserver_sync", "keyserver_sync");
+  if host != "" {
+    lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
+  }
+  logutil.GeneralLogWriter(&lc, "keyserver_sync");
 }
 
 func KSINDKFKLogPrinter(uid UID, host string, lvl string, msg string) {
@@ -115,10 +123,16 @@ func KSINDKFKLogPrinter(uid UID, host string, lvl string, msg string) {
     Msg: msg,
   }
   if uid.Upper == uint64(0) && uid.Lower == uint64(0) {
-    lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
+    if host != "" {
+      lc.Opt = fmt.Sprintf("{\"Nid\": \"%s\"}", host);
+    }
   } else {
-    lc.Opt = fmt.Sprintf("{\"UID\": \"%d:%d:%d\", \"Nid\": \"%s\"}", uid.Upper, uid.Lower, uid.Type, host);
+    if host != "" {
+      lc.Opt = fmt.Sprintf("{\"UID\": \"%d:%d:%d\", \"Nid\": \"%s\"}", uid.Upper, uid.Lower, uid.Type, host);
+    } else {
+      lc.Opt = fmt.Sprintf("{\"UID\": \"%d:%d:%d\"}", uid.Upper, uid.Lower, uid.Type);
+    }
   }
-  logutil.GeneralLogWriter(&lc, "keyserver", "keyserver");
+  logutil.GeneralLogWriter(&lc, "keyserver");
 }
 

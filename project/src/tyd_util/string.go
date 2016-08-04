@@ -1,18 +1,18 @@
 package tyd_util;
 
-func Split() {
-  c := sep[0]
-  start := 0
-  a := make([]string, n)
-  na := 0
-  for i := 0; i+len(sep) <= len(s) && na+1 < n; i++ {
-    if s[i] == c && (len(sep) == 1 || s[i:i+len(sep)] == sep) {
-      a[na] = s[start : i+sepSave]
-      na++
+func Split(src, sep string, dst *[]string, str_index *int) {
+  head := sep[0];
+  start := 0;
+  *str_index = 0;
+  n := len(*dst);
+  for i := 0; i+len(sep) <= len(src) && *str_index+1 < n; i++ {
+    if src[i] == head && (len(sep) == 1 || src[i:i+len(sep)] == sep) {
+      (*dst)[*str_index] = src[start : i]
+      *str_index++
       start = i + len(sep)
       i += len(sep) - 1
     }
   }
-  a[na] = s[start:]
-  return a[0 : na+1]
+  (*dst)[*str_index] = src[start:]
+  *str_index++;
 }
