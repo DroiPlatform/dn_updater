@@ -17,7 +17,7 @@ type GlobalConf struct {
 /* print config */
 func (gc GlobalConf) PrintConfig() {
   for _, value := range gc.Directives {
-    KSKFKLogPrinter(UID {uint8(0), uint64(0), uint64(0)}, "INFO", fmt.Sprintf("Key: %s, Value: %s\n", value.Key, value.Value));
+    UIDLogPrinter(UID {uint8(0), uint64(0), uint64(0)}, "", "INFO", fmt.Sprintf("Key: %s, Value: %s\n", value.Key, value.Value));
   }
 }
 
@@ -59,13 +59,13 @@ func GetConf(p_conf string) (GlobalConf) {
       cptr++;
     } else if len(rec) == 1 && rec[0] == "" {
     } else {
-      KSKFKLogPrinter(UID {uint8(0), uint64(0), uint64(0)}, "ERR", fmt.Sprintf("config error (%s) @ line %d\n", rec, lptr));
+      UIDLogPrinter(UID {uint8(0), uint64(0), uint64(0)}, "", "ERR", fmt.Sprintf("config error (%s) @ line %d\n", rec, lptr));
       os.Exit(1);
     }
     lptr++;
   }
   if cf_line < cptr {
-    KSKFKLogPrinter(UID {uint8(0), uint64(0), uint64(0)}, "ERR", fmt.Sprintf("config error, cf_line (%d) < cptr (%d)\n", cf_line, cptr));
+    UIDLogPrinter(UID {uint8(0), uint64(0), uint64(0)}, "", "ERR", fmt.Sprintf("config error, cf_line (%d) < cptr (%d)\n", cf_line, cptr));
   }
   for i := 0; i < cptr; i++ {
     conf.Directives = append(conf.Directives, Conf{key[i], value[i]});

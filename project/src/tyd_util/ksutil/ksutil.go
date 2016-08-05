@@ -26,24 +26,6 @@ type SrvConf struct {
   err error;
 };
 
-/* print SrvConf */
-func (hc SrvConf) PrintSrvConf() {
-  util.PrintPrefix(util.UID {uint8(0), uint64(0), uint64(0)}, "info");
-  fmt.Printf("--------- Printing Srv config\n");
-  for key, value := range hc.S {
-    util.PrintPrefix(util.UID {uint8(0), uint64(0), uint64(0)}, "info");
-    fmt.Printf("%s: %s\n", key, value);
-  }
-  for key, value := range hc.I {
-    util.PrintPrefix(util.UID {uint8(0), uint64(0), uint64(0)}, "info");
-    fmt.Printf("%s: %d\n", key, value);
-  }
-  for key, value := range hc.B {
-    util.PrintPrefix(util.UID {uint8(0), uint64(0), uint64(0)}, "info");
-    fmt.Printf("%s: %v\n", key, value);
-  }
-}
-
 /* init SrvConf */
 func initSrvConf() (SrvConf) {
   conf := SrvConf{
