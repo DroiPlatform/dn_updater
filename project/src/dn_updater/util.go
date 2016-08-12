@@ -119,6 +119,7 @@ import "bufio";
 import "errors";
 import "fmt";
 import "io/ioutil";
+import "net";
 import "os";
 import "os/exec";
 import "strconv";
@@ -695,8 +696,9 @@ func checkETCD() (error) {
   return nil;
 }
 
-func getLocalIP() (string) {
+func getLocalIP() (string, error) {
   //cmd := exec.Command("ip", "addr", "|", "grep", "global");
+  /*
   cmd := exec.Command("ip", "addr");
   raw, err := cmd.Output();
   if err != nil {
@@ -725,5 +727,23 @@ func getLocalIP() (string) {
     }
   }
   return "";
+  */
+  iface, err := net.InterfaceByName(opts.iface);
+  if err != nil {
+    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getLocalIP] failed to get interface: %s", err.Error()), TOPIC);
+    return "", err;
+  }
+  var addrs []net.Addr;
+  addrs, err = iface.Addrs();
+  if err != nil {
+    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getLocalIP] failed to get IPs: %s", err.Error()), TOPIC);
+    return "", err;
+  }
+  if len(addrs) < 1 {
+    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getLocalIP] failed to get IPs: %s", ERR_NO_IP), TOPIC);
+    return "", ERR_NO_IP;
+  } else {
+    return addrs[0].String(), nil;
+  }
 }
 

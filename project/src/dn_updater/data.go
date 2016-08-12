@@ -34,6 +34,7 @@ type Options struct {
   domain string;
   etcd string;
   host string;
+  iface string;
   log string;
 }
 
@@ -69,6 +70,9 @@ type TmpBuffer struct {
   hosts map[string]string;
 }
 
+var ERR_FLAG error;
+var ERR_NO_IP error;
+
 var kube_status map[string]KubeStatus;
 var opts Options;
 var etcds []string;
@@ -89,14 +93,31 @@ func init() {
   flag.IntVar(&opts.suicide, "suicide", 0, "suicide after <suicide> hours, 0 for never");
   flag.IntVar(&opts.throttle, "throttle", 100, "throttle for debug msg frequency, 1-255");
   flag.StringVar(&opts.brokers, "brokers", "10.128.112.186:9092", "ip:port for kafka brokers, seperated by comma");
-  flag.StringVar(&opts.domain, "domain", "", "domain for etcds, seperated by comma");
-  flag.StringVar(&opts.etcd, "etcd", "", "ip:port for etcds, seperated by comma");
+  flag.StringVar(&opts.domain, "domain", "tyd.svc.cluster.local", "domain for etcds, seperated by comma");
+  flag.StringVar(&opts.etcd, "etcd", "", "required flag: ip:port for etcds, seperated by comma");
   flag.StringVar(&opts.host, "host", "", "host identifier of this machine, usually IP");
+  flag.StringVar(&opts.iface, "iface", "", "required flag: interface to serve");
   flag.StringVar(&opts.log, "log", "dn_updater.log", "path to local log file.");
 }
 
 func initHermes() (error) {
-  err := initData();
+  ERR_FLAG = errors.New("missing required flag");
+  ERR_NO_IP = errors.New(fmt.Sprintf("no IP available for iface %s", opts.iface));
+  if opts.etcd == "" {
+    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("required flag missing: etcd"), TOPIC);
+    fmt.Fprintf(os.Stderr, "required flag missing: etcd\n");
+    return ERR_FLAG;
+  } else if opts.iface == "" {
+    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("required flag missing: iface"), TOPIC);
+    fmt.Fprintf(os.Stderr, "required flag missing: iface\n");
+    return ERR_FLAG;
+  }
+  hostnet, err := getLocalIP();
+  if err != nil {
+    return err;
+  }
+  host = strings.Split(hostnet, "/")[0];
+  err = initData();
   if opts.debug {
     GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("result from initData: %v", err), TOPIC);
   }
@@ -107,8 +128,6 @@ func initData() (error){
   /* initial global variables */
   rnd_cnt = uint8(0);
   mod, _ = os.Hostname();
-  /* get pod ip addr */
-  host = getLocalIP();
   fmt.Printf("[initData] host: %s\n", host);
   /* initiate tmp buffers and shared resources */
   buffer.client = &http.Client{};
