@@ -34,8 +34,8 @@ type Options struct {
   domain string;
   etcd string;
   host string;
-  iface string;
   log string;
+  redirect string;
 }
 
 /* structure for kube status */
@@ -71,17 +71,15 @@ type TmpBuffer struct {
 }
 
 var ERR_FLAG error;
-var ERR_NO_IP error;
 
 var kube_status map[string]KubeStatus;
 var opts Options;
 var etcds []string;
 var domains []string;
 var buffer TmpBuffer;
-var rnd_cnt uint8;
-var host string;
-var mod string;
 var Kafka bool;
+var mod string;
+var rnd_cnt uint8;
 
 func init() {
   flag.BoolVar(&opts.build, "build", false, "print golang build version");
@@ -96,28 +94,22 @@ func init() {
   flag.StringVar(&opts.domain, "domain", "tyd.svc.cluster.local", "domain for etcds, seperated by comma");
   flag.StringVar(&opts.etcd, "etcd", "", "required flag: ip:port for etcds, seperated by comma");
   flag.StringVar(&opts.host, "host", "", "host identifier of this machine, usually IP");
-  flag.StringVar(&opts.iface, "iface", "", "required flag: interface to serve");
+  flag.StringVar(&opts.redirect, "redirect", "", "required flag: IP to be redirected if pod is unavailable");
   flag.StringVar(&opts.log, "log", "dn_updater.log", "path to local log file.");
 }
 
 func initHermes() (error) {
   ERR_FLAG = errors.New("missing required flag");
-  ERR_NO_IP = errors.New(fmt.Sprintf("no IP available for iface %s", opts.iface));
   if opts.etcd == "" {
     GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("required flag missing: etcd"), TOPIC);
     fmt.Fprintf(os.Stderr, "required flag missing: etcd\n");
     return ERR_FLAG;
-  } else if opts.iface == "" {
-    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("required flag missing: iface"), TOPIC);
-    fmt.Fprintf(os.Stderr, "required flag missing: iface\n");
+  } else if opts.redirect == "" {
+    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("required flag missing: redirect"), TOPIC);
+    fmt.Fprintf(os.Stderr, "required flag missing: redirect\n");
     return ERR_FLAG;
   }
-  hostnet, err := getLocalIP();
-  if err != nil {
-    return err;
-  }
-  host = strings.Split(hostnet, "/")[0];
-  err = initData();
+  err := initData();
   if opts.debug {
     GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("result from initData: %v", err), TOPIC);
   }
@@ -128,7 +120,7 @@ func initData() (error){
   /* initial global variables */
   rnd_cnt = uint8(0);
   mod, _ = os.Hostname();
-  fmt.Printf("[initData] host: %s\n", host);
+  fmt.Printf("[initData] host: %s\n", opts.host);
   /* initiate tmp buffers and shared resources */
   buffer.client = &http.Client{};
   buffer.requests = make(map[string]*http.Request);

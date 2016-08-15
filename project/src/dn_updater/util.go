@@ -119,7 +119,6 @@ import "bufio";
 import "errors";
 import "fmt";
 import "io/ioutil";
-import "net";
 import "os";
 import "os/exec";
 import "strconv";
@@ -217,6 +216,7 @@ func Asclepius() {
 func printHistory() {
   for _, v := range etcds {
     observation := kube_status[v].observation;
+    info := kube_status[v].current;
     output := fmt.Sprintf("[printHistory] Once offline svcs of %s:", v);
     first := true;
 //    fmt.Fprintf(os.Stderr, "etcd %s: observation: %v, current: %v\n", v, kube_status[v].observation, kube_status[v].current);
@@ -239,7 +239,10 @@ func printHistory() {
         }
       }
     }
-    GenericLogPrinter(opts.host, "DEBUG", output, TOPIC);
+    if first {
+      output = fmt.Sprintf("All %d services were alive...", len(info.pod_ip));
+    }
+    GenericLogPrinter(opts.host, "INFO", output, TOPIC);
   }
 }
 
@@ -381,11 +384,12 @@ func printHosts(dest *os.File, key string) {
     }
   }
   observation := kube_status[key].observation;
-  if true {
+  if opts.debug {
     GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[printHosts] IPs of %d pods are written, prepared to write %d inactive pods", len(info.pod_ip), len(observation.trend)), TOPIC);
   }
+  /* for those unavailable pods */
   for k, _ := range observation.trend {
-    fmt.Fprintf(dest, "%s %s.%s %s\n", host, k, kube_status[key].domain, k);
+    fmt.Fprintf(dest, "%s %s.%s %s\n", opts.redirect, k, kube_status[key].domain, k);
   }
 }
 
@@ -601,10 +605,10 @@ func fillInc() {
       if err != nil {
         GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[fillInc] failed to fill current: %s", err.Error()), TOPIC);
       }
-//        fmt.Fprintf(os.Stderr, "current b4: %v\n", kube_status[v].current);
       updateKubeStatus(v, true, true, inc, current, past, observation);
-//        fmt.Fprintf(os.Stderr, "current after: %v\n", kube_status[v].current);
+      if opts.debug {
         GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] first! firstborn: %v, clean: %v", kube_status[v].firstborn, kube_status[v].clean), TOPIC);
+      }
       writeKubeInfo(v);
       if opts.debug {
         GenericLogPrinter(opts.host, "DEBUG", fmt.Sprintf("[fillInc] inc: "), TOPIC);
@@ -694,56 +698,5 @@ func checkETCD() (error) {
     }
   }
   return nil;
-}
-
-func getLocalIP() (string, error) {
-  //cmd := exec.Command("ip", "addr", "|", "grep", "global");
-  /*
-  cmd := exec.Command("ip", "addr");
-  raw, err := cmd.Output();
-  if err != nil {
-    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getIP] failed to get ip addr: %s", err.Error()), TOPIC);
-    return "";
-  } else {
-    lines := strings.Split(string(raw), string(10));
-    for i := 0; i < len(lines); i++ {
-      fields := strings.Split(strings.Trim(lines[i], " \t"), " ");
-      global := false;
-      if len(fields) > 4 {
-        if fields[0] == "inet" {
-          for j := 0; j < len(fields); j++ {
-            if fields[j] == "global" {
-              global = true;
-            }
-          }
-          if global {
-            ip := strings.Split(fields[1], "/");
-            if len(ip) == 2 {
-              return ip[0];
-            }
-          }
-        }
-      }
-    }
-  }
-  return "";
-  */
-  iface, err := net.InterfaceByName(opts.iface);
-  if err != nil {
-    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getLocalIP] failed to get interface: %s", err.Error()), TOPIC);
-    return "", err;
-  }
-  var addrs []net.Addr;
-  addrs, err = iface.Addrs();
-  if err != nil {
-    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getLocalIP] failed to get IPs: %s", err.Error()), TOPIC);
-    return "", err;
-  }
-  if len(addrs) < 1 {
-    GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[getLocalIP] failed to get IPs: %s", ERR_NO_IP), TOPIC);
-    return "", ERR_NO_IP;
-  } else {
-    return addrs[0].String(), nil;
-  }
 }
 
