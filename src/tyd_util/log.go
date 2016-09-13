@@ -13,7 +13,7 @@ type UID struct {
 
 /* get formatted time string */
 func getTime() (string) {
-  return fmt.Sprintf("%s.%06d", time.Now().Format("2006-01-02 15:04:05"), time.Now().Nanosecond()/1000);
+  return fmt.Sprintf("%s.%06d", time.Now().UTC().Format("2006-01-02 15:04:05"), time.Now().UTC().Nanosecond()/1000);
 }
 
 /* high level log printer for general purpose */
@@ -48,7 +48,7 @@ func IPListLogPrinter(host string, lvl string, msg string) {
 func UIDLogPrinter(uid UID, host string, lvl string, msg string) {
   lc := logutil.LogContent {
     Version: 1,
-    //Time: time.Now().UnixNano() / int64(1000),
+    //Time: time.Now().UTC().UnixNano() / int64(1000),
     Time: getTime(),
     Lvl: lvl,
     Msg: msg,
