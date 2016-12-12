@@ -440,14 +440,15 @@ func writeKubeInfo(key string) {
         save = true;
       }
       if save {
-        timestamp := time.Now().UnixNano()/int64(1000000);
+        //timestamp := time.Now().UnixNano()/int64(1000000);
         //err := os.Rename(HOST, fmt.Sprintf("%s.%d", HOST, timestamp));
-        err := exec.Command("cp", HOST, fmt.Sprintf("%s.%d", HOST, timestamp)).Run();
+        //err := exec.Command("cp", HOST, fmt.Sprintf("%s.%d", HOST, timestamp)).Run();
+        err := exec.Command("cp", HOST, fmt.Sprintf("%s.bak", HOST)).Run();
         if err != nil {
-          GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to move host file (%s) to backup (%s): %s", HOST, fmt.Sprintf("%s.%d", HOST, timestamp), err.Error()), TOPIC);
+          GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to move host file (%s) to backup (%s): %s", HOST, fmt.Sprintf("%s.bak", HOST), err.Error()), TOPIC);
         }
         //err = os.Rename(HOST + ".tmp", HOST);
-        err = exec.Command("cp", HOST + ".tmp", HOST).Run();
+        err = exec.Command("mv", HOST + ".tmp", HOST).Run();
         if err != nil {
           GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to move tmp host file (%s) to host file (%s): %s", HOST + ".tmp", HOST, err.Error()), TOPIC);
         }
