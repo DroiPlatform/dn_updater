@@ -452,6 +452,10 @@ func writeKubeInfo(key string) {
         if err != nil {
           GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to move tmp host file (%s) to host file (%s): %s", HOST + ".tmp", HOST, err.Error()), TOPIC);
         }
+        err = exec.Command("chmod", "0644", HOST).Run();
+        if err != nil {
+          GenericLogPrinter(opts.host, "ERR", fmt.Sprintf("[writeKubeInfo] failed to chmod the host file (%s): %s", HOST, err.Error()), TOPIC);
+        }
         reloadDNSMasq();
       }
     }
