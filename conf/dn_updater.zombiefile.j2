@@ -1,0 +1,8 @@
+{
+    "tag": "dn_updater",
+    "match": "{{ACCELERATOR_COMMON_CONFIG.droi_directory}}/keyserver/current/dn_updater",
+    #"regex": "",
+    "exec": "{{ACCELERATOR_COMMON_CONFIG.droi_directory}}/keyserver/current/dn_updater -host {{internal_ip}} -brokers {{ACCELERATOR_COMMON_CONFIG['kfk_broker'][simple_phase]}} -etcd {{dn_updater[simple_phase].etcd}} -redirect {{dn_updater[simple_phase].redirect}}", 
+    #'alert': ' Restart',
+    #"numa": True,
+}
